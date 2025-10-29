@@ -1,0 +1,80 @@
+import numpy as np
+
+# --- PARAMETERS ---
+num_devices = 5
+num_wolves = 10
+max_iter = 50
+min_charge = 0.5   # Min charging rate (W)
+max_charge = 2.0   # Max charging rate (W)
+target_charge = 90 # Target charge in %
+max_total_power = 7.0 # Max available power (W)
+
+# --- FITNESS FUNCTION ---
+def fitness(charging_rates):
+    total_power = np.sum(charging_rates)
+    penalty = 0
+   
+    # Penalty for exceeding total power
+    if total_power > max_total_power:
+        penalty += (total_power - max_total_power) * 10
+   
+    # Penalty for overcharging individual devices
+    for rate in charging_rates:
+        if rate > max_charge:
+            penalty += (rate - max_charge) * 10
+        if rate < min_charge:
+            penalty += (min_charge - rate) * 10
+
+    # Total energy (simplified as sum of charging rates)
+    energy_used = total_power
+    return energy_used + penalty
+
+# --- INITIALIZE WOLVES ---
+wolves = np.random.uniform(min_charge, max_charge, (num_wolves, num_devices))
+
+# --- MAIN GWO LOOP ---
+for iter in range(max_iter):
+    # Evaluate fitness
+    fitness_values = np.array([fitness(w) for w in wolves])
+   
+    # Sort wolves by fitness (lower is better)
+    sorted_indices = np.argsort(fitness_values)
+    alpha = wolves[sorted_indices[0]]
+    beta  = wolves[sorted_indices[1]]
+    delta = wolves[sorted_indices[2]]
+
+    # Linearly decreasing coefficient 'a'
+    a = 2 - iter * (2 / max_iter)
+
+    # Update positions of wolves
+    for i in range(num_wolves):
+        for j in range(num_devices):
+            r1, r2 = np.random.rand(), np.random.rand()
+            A1 = 2 * a * r1 - a
+            C1 = 2 * r2
+            D_alpha = abs(C1 * alpha[j] - wolves[i][j])
+            X1 = alpha[j] - A1 * D_alpha
+
+            r1, r2 = np.random.rand(), np.random.rand()
+            A2 = 2 * a * r1 - a
+            C2 = 2 * r2
+            D_beta = abs(C2 * beta[j] - wolves[i][j])
+            X2 = beta[j] - A2 * D_beta
+
+            r1, r2 = np.random.rand(), np.random.rand()
+            A3 = 2 * a * r1 - a
+            C3 = 2 * r2
+            D_delta = abs(C3 * delta[j] - wolves[i][j])
+            X3 = delta[j] - A3 * D_delta
+
+            # Update wolf position
+            wolves[i][j] = (X1 + X2 + X3) / 3
+
+        # Clamp values within allowed charging range
+        wolves[i] = np.clip(wolves[i], min_charge, max_charge)
+
+# --- OUTPUT BEST SOLUTION ---
+best_fitness = fitness(alpha)
+print("Best charging strategy (W per device):", alpha)
+print("Total power used:", np.sum(alpha), "W")
+print("Fitness (lower is better):", best_fitness)
